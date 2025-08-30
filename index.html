@@ -1,163 +1,119 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Valorant Hassasiyet Bulucu</title>
-<style>
-  :root {
-    --bg: #0e0f13;
-    --fg: #e6e6e6;
-    --muted: #9aa0a6;
-    --accent: #6ee7b7;
-    --danger: #ef4444;
-    --card: #151821;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-    color: var(--fg); background: var(--bg);
-  }
-  header { padding: 16px 20px; border-bottom: 1px solid #1f2330; }
-  h1 { margin: 0; font-size: 20px; }
-  main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
-  .panel {
-    background: var(--card); border: 1px solid #1f2330; border-radius: 10px; padding: 14px;
-  }
-  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
-  label { font-size: 13px; color: var(--muted); width: 130px; }
-  input[type="number"], input[type="text"] {
-    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #263047; background: #0e1220; color: var(--fg);
-  }
-  input[type="range"] { width: 100%; }
-  button {
-    background: #243142; color: var(--fg); border: 1px solid #34455f; padding: 10px 12px; border-radius: 8px; cursor: pointer;
-  }
-  button.primary { background: #24453a; border-color: #2f6f59; color: #d1fae5; }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .hint { font-size: 12px; color: var(--muted); }
-  .list { font-size: 13px; line-height: 1.5; }
-  canvas { width: 100%; height: calc(100vh - 120px); background: #0a0c12; border: 1px solid #1f2330; border-radius: 10px; display: block; }
-  .metrics { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .score { font-size: 13px; }
-  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#15202b; border:1px solid #223044; margin-right:6px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { border-bottom: 1px solid #1f2330; padding: 6px 8px; text-align: left; }
-  th { color: #cbd5e1; font-weight: 600; }
-  .crosshair {
-    position:absolute; width: 10px; height: 10px; margin-left:-5px; margin-top:-5px; pointer-events:none;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valorant Sensitivity Kalibrasyon</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #stage {
+            background-color: #222;
+            display: block;
+            margin: 20px auto;
+            border: 2px solid #555;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+            pointer-events: none;
+        }
+        #crosshair:before, #crosshair:after {
+            content: '';
+            position: absolute;
+            background: red;
+        }
+        #crosshair:before {
+            left: 9px;
+            top: 0;
+            width: 2px;
+            height: 20px;
+        }
+        #crosshair:after {
+            top: 9px;
+            left: 0;
+            width: 20px;
+            height: 2px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-<header>
-  <h1>Valorant Hassasiyet Bulucu (Prototype)</h1>
-</header>
-<main>
-  <section class="panel" id="controls">
-    <div class="row">
-      <label>DPI</label>
-      <input type="number" id="dpi" value="800" min="100" max="32000" step="50">
-    </div>
-    <div class="row">
-      <label>Merkez sens</label>
-      <input type="number" id="centerSens" value="0.35" min="0.05" max="3" step="0.01">
-    </div>
-    <div class="row">
-      <label>Aralık ±%</label>
-      <input type="number" id="spanPct" value="40" min="5" max="90" step="5">
-    </div>
-    <div class="row">
-      <label>Aday sayısı</label>
-      <input type="number" id="candidates" value="7" min="3" max="11" step="2">
-    </div>
-    <div class="row">
-      <label>Test süresi (sn)</label>
-      <input type="number" id="testSec" value="10" min="5" max="30" step="1">
-    </div>
 
-    <hr style="border-color:#1f2330">
+    <h1>Valorant Sensitivity Kalibrasyon</h1>
+    <button id="startBtn">Kalibrasyonu Başlat</button>
+    <canvas id="stage" width="800" height="600"></canvas>
+    <div id="crosshair"></div>
 
-    <div class="row"><label>Ağırlık — Micro</label><input type="range" id="wMicro" min="0" max="1" step="0.05" value="0.35"></div>
-    <div class="row"><label>Ağırlık — Macro</label><input type="range" id="wMacro" min="0" max="1" step="0.05" value="0.25"></div>
-    <div class="row"><label>Ağırlık — Yavaş Takip</label><input type="range" id="wTrackSlow" min="0" max="1" step="0.05" value="0.20"></div>
-    <div class="row"><label>Ağırlık — Hızlı Takip</label><input type="range" id="wTrackFast" min="0" max="1" step="0.05" value="0.20"></div>
-    <div class="hint">Toplam 1.00 olacak şekilde ayarla (otomatik normalize edilir).</div>
+    <script>
+        const canvas = document.getElementById("stage");
+        const ctx = canvas.getContext("2d");
 
-    <div class="row" style="margin-top:12px; gap:12px;">
-      <button class="primary" id="startBtn">Kalibrasyonu Başlat</button>
-      <button id="refineBtn" disabled>İnce Ayar Turu</button>
-      <button id="stopBtn" disabled>Durdur</button>
-    </div>
+        let posX = canvas.width / 2;
+        let posY = canvas.height / 2;
+        let sens = 0.5; // Buradan hassasiyet ayarlanabilir
 
-    <div class="metrics" id="status">Hazır.</div>
+        // Fare kilidi isteği
+        document.getElementById("startBtn").addEventListener("click", () => {
+            if (canvas.requestPointerLock) {
+                canvas.requestPointerLock({ unadjustedMovement: true });
+            } else {
+                alert("Tarayıcınız Pointer Lock API'yi desteklemiyor.");
+            }
+        });
 
-    <div class="panel" style="margin-top:12px;">
-      <div style="font-weight:600;margin-bottom:6px;">Aday sens listesi</div>
-      <div class="list" id="sensList"></div>
-    </div>
+        // Fare kilidi değiştiğinde
+        document.addEventListener("pointerlockchange", () => {
+            if (document.pointerLockElement === canvas) {
+                console.log("Fare kilidi aktif!");
+                document.addEventListener("mousemove", onMouseMove, false);
+            } else {
+                console.log("Fare kilidi kapandı.");
+                document.removeEventListener("mousemove", onMouseMove, false);
+            }
+        });
 
-    <div class="panel" style="margin-top:12px;">
-      <div style="font-weight:600;margin-bottom:6px;">Sonuçlar</div>
-      <table id="resultsTbl">
-        <thead><tr><th>Sens</th><th>eDPI</th><th>Skor</th><th>Micro</th><th>Macro</th><th>Takip Y</th><th>Takip H</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="hint" id="recommendHint"></div>
-    </div>
+        // Fare hareketi
+        function onMouseMove(e) {
+            posX += e.movementX * sens;
+            posY += e.movementY * sens;
 
-    <div class="panel" style="margin-top:12px;">
-      <div style="font-weight:600;margin-bottom:6px;">İpuçları</div>
-      <ul class="list">
-        <li><span class="pill">1</span> Tam ekran ve masada gerçek oyun koşulları.</li>
-        <li><span class="pill">2</span> Windows’ta “Enhance Pointer Precision” kapalı olsun.</li>
-        <li><span class="pill">3</span> Aynı mousepad yüzeyi, bilek/kol tekniğini değiştirme.</li>
-      </ul>
-    </div>
-  </section>
+            // Sınırlar
+            if (posX < 0) posX = 0;
+            if (posY < 0) posY = 0;
+            if (posX > canvas.width) posX = canvas.width;
+            if (posY > canvas.height) posY = canvas.height;
 
-  <section class="panel" style="position:relative;">
-    <canvas id="stage"></canvas>
-    <div class="metrics" id="liveMetrics">—</div>
-  </section>
-</main>
+            draw();
+        }
 
-<script>
-  // Canvas setup
-  const canvas = document.getElementById('stage');
-  const ctx = canvas.getContext('2d');
-  function resizeCanvas() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
-  }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
+        // Çizim
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(posX, posY, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-  // Controls
-  const dpiEl = document.getElementById('dpi');
-  const centerSensEl = document.getElementById('centerSens');
-  const spanPctEl = document.getElementById('spanPct');
-  const candidatesEl = document.getElementById('candidates');
-  const testSecEl = document.getElementById('testSec');
-  const sensListEl = document.getElementById('sensList');
-  const startBtn = document.getElementById('startBtn');
-  const refineBtn = document.getElementById('refineBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const statusEl = document.getElementById('status');
-  const resultsTbl = document.querySelector('#resultsTbl tbody');
-  const recommendHint = document.getElementById('recommendHint');
-  const liveMetrics = document.getElementById('liveMetrics');
+        draw();
+    </script>
 
-  // State
-  let pointerLocked = false;
-  let cross = { x: 400, y: 300 };
-  let currentSens = 0.35;
-  let currentEDPI = 800 * 0.35;
-  let running = false;
-  let abortRun = false;
-
-  // Tests configuration
-  const TESTS =
+</body>
+</html>
