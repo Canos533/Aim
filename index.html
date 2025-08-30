@@ -1,119 +1,88 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Valorant Sensitivity Kalibrasyon</title>
-    <style>
-        body {
-            background-color: #111;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 0;
-        }
-        #stage {
-            background-color: #222;
-            display: block;
-            margin: 20px auto;
-            border: 2px solid #555;
-        }
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 20px;
-            height: 20px;
-            margin-left: -10px;
-            margin-top: -10px;
-            pointer-events: none;
-        }
-        #crosshair:before, #crosshair:after {
-            content: '';
-            position: absolute;
-            background: red;
-        }
-        #crosshair:before {
-            left: 9px;
-            top: 0;
-            width: 2px;
-            height: 20px;
-        }
-        #crosshair:after {
-            top: 9px;
-            left: 0;
-            width: 20px;
-            height: 2px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-top: 10px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Valorant Sensitivity Finder</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 0; background:#111; color:#eee;}
+    #arena { margin:20px auto; width:800px; height:600px; border:2px solid #444; background:#222; position:relative; overflow:hidden; cursor:crosshair;}
+    .target { width:30px; height:30px; border-radius:50%; background:red; position:absolute;}
+    #results { margin-top:20px;}
+    input, button { margin:5px; padding:8px; font-size:16px;}
+  </style>
 </head>
 <body>
+  <h1>Valorant Sensitivity Finder 🎯</h1>
+  <p>Valorant hassasiyetlerini virgülle gir (örn: 0.32,0.36,0.40)</p>
+  <input type="text" id="sensitivities" value="0.32,0.36,0.40,0.44,0.48" size="40"/>
+  <br/>
+  <label>DPI: <input type="number" id="dpi" value="800"/></label>
+  <br/>
+  <button onclick="startTest()">Teste Başla</button>
 
-    <h1>Valorant Sensitivity Kalibrasyon</h1>
-    <button id="startBtn">Kalibrasyonu Başlat</button>
-    <canvas id="stage" width="800" height="600"></canvas>
-    <div id="crosshair"></div>
+  <div id="arena"></div>
+  <div id="results"></div>
 
-    <script>
-        const canvas = document.getElementById("stage");
-        const ctx = canvas.getContext("2d");
+<script>
+const arena = document.getElementById("arena");
+const resultsDiv = document.getElementById("results");
+let sensList = [];
+let dpi = 800;
+let currentSensIndex = 0;
+let scoreData = [];
+let targetCount = 10;
+let hits = 0;
+let startTime = 0;
 
-        let posX = canvas.width / 2;
-        let posY = canvas.height / 2;
-        let sens = 0.5; // Buradan hassasiyet ayarlanabilir
+function startTest(){
+  sensList = document.getElementById("sensitivities").value.split(",").map(s=>parseFloat(s.trim())).filter(x=>!isNaN(x));
+  dpi = parseInt(document.getElementById("dpi").value)||800;
+  currentSensIndex = 0;
+  scoreData = [];
+  resultsDiv.innerHTML = "";
+  nextSens();
+}
 
-        // Fare kilidi isteği
-        document.getElementById("startBtn").addEventListener("click", () => {
-            if (canvas.requestPointerLock) {
-                canvas.requestPointerLock({ unadjustedMovement: true });
-            } else {
-                alert("Tarayıcınız Pointer Lock API'yi desteklemiyor.");
-            }
-        });
+function nextSens(){
+  if(currentSensIndex >= sensList.length){
+    showResults();
+    return;
+  }
+  hits = 0;
+  arena.innerHTML = "";
+  resultsDiv.innerHTML = `<p><b>Sensitivity:</b> ${sensList[currentSensIndex]} (eDPI: ${(sensList[currentSensIndex]*dpi).toFixed(0)})</p>`;
+  spawnTarget();
+  startTime = Date.now();
+}
 
-        // Fare kilidi değiştiğinde
-        document.addEventListener("pointerlockchange", () => {
-            if (document.pointerLockElement === canvas) {
-                console.log("Fare kilidi aktif!");
-                document.addEventListener("mousemove", onMouseMove, false);
-            } else {
-                console.log("Fare kilidi kapandı.");
-                document.removeEventListener("mousemove", onMouseMove, false);
-            }
-        });
+function spawnTarget(){
+  if(hits >= targetCount){
+    let timeTaken = (Date.now()-startTime)/1000;
+    scoreData.push({sens:sensList[currentSensIndex], edpi:(sensList[currentSensIndex]*dpi), time:timeTaken});
+    currentSensIndex++;
+    nextSens();
+    return;
+  }
+  let target = document.createElement("div");
+  target.className = "target";
+  target.style.left = Math.random()*(arena.clientWidth-30)+"px";
+  target.style.top = Math.random()*(arena.clientHeight-30)+"px";
+  target.onclick = ()=>{ hits++; target.remove(); spawnTarget(); };
+  arena.appendChild(target);
+}
 
-        // Fare hareketi
-        function onMouseMove(e) {
-            posX += e.movementX * sens;
-            posY += e.movementY * sens;
-
-            // Sınırlar
-            if (posX < 0) posX = 0;
-            if (posY < 0) posY = 0;
-            if (posX > canvas.width) posX = canvas.width;
-            if (posY > canvas.height) posY = canvas.height;
-
-            draw();
-        }
-
-        // Çizim
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "white";
-            ctx.beginPath();
-            ctx.arc(posX, posY, 5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        draw();
-    </script>
-
+function showResults(){
+  arena.innerHTML = "";
+  let best = scoreData.reduce((a,b)=> a.time < b.time ? a : b);
+  let html = "<h2>Sonuçlar</h2><table border='1' style='margin:auto;border-collapse:collapse;'><tr><th>Sens</th><th>eDPI</th><th>Süre (sn)</th></tr>";
+  scoreData.forEach(d=>{
+    html+=`<tr><td>${d.sens}</td><td>${d.edpi}</td><td>${d.time.toFixed(2)}</td></tr>`;
+  });
+  html+="</table>";
+  html+=`<p><b>Önerilen Sens:</b> ${best.sens} (eDPI: ${best.edpi.toFixed(0)})</p>`;
+  resultsDiv.innerHTML = html;
+}
+</script>
 </body>
 </html>
