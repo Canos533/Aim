@@ -1,155 +1,147 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Valorant Sensitivity Finder</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin: 0; background:#111; color:#eee;}
-    #arena { margin:20px auto; width:800px; height:600px; border:2px solid #444; background:#222; position:relative; overflow:hidden; cursor:crosshair;}
-    .target { width:30px; height:30px; border-radius:50%; background:red; position:absolute;}
-    #results { margin-top:20px;}
-    input, button { margin:5px; padding:8px; font-size:16px;}
-  </style>
+<meta charset="UTF-8">
+<title>Valorant Sensitivity Finder</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#111; color:white; font-family:sans-serif; }
+  .arena { position:relative; width:800px; height:520px; margin:20px auto; background:linear-gradient(to top right,#2a2a3d,#1c1c2b); border:2px solid #555; border-radius:16px; overflow:hidden; user-select:none; }
+  .crosshair { position:absolute; width:0; height:0; pointer-events:none; }
+  .crosshair div { position:absolute; background:white; }
+  .crosshair .center { width:2px; height:2px; background:#f0f; box-shadow:0 0 8px #f0f; top:-1px; left:-1px; }
+  .crosshair .h { width:8px; height:2px; top:-1px; left:-4px; }
+  .crosshair .v { width:2px; height:8px; top:-4px; left:-1px; }
+  .target { position:absolute; border:2px solid rgba(255,255,255,0.8); background:rgba(255,255,255,0.1); border-radius:50%; }
+  .controls { max-width:800px; margin:0 auto; padding:10px; }
+  button { padding:6px 12px; margin-right:10px; border:none; border-radius:8px; cursor:pointer; }
+  button.start { background:#4ade80; color:#111; }
+  button.stop { background:#f87171; color:#111; }
+  label { display:block; margin:6px 0; }
+  input[type=checkbox] { margin-right:4px; }
+  .warning { position:absolute; top:10px; left:10px; right:10px; background:#b91c1c; padding:8px; border-radius:8px; font-size:12px; }
+</style>
 </head>
 <body>
-  <h1>Valorant Sensitivity Finder 🎯</h1>
-  <p>Valorant sens değerlerini virgülle gir (örn: 0.32,0.36,0.40)</p>
-  <input type="text" id="sensitivities" value="0.32,0.36,0.40,0.44,0.48" size="40"/>
-  <br/>
-  <label>DPI: <input type="number" id="dpi" value="800"/></label>
-  <br/>
-  <button onclick="startTest()">Teste Başla</button>
-
-  <div id="arena"></div>
-  <div id="results"></div>
+<div class="controls">
+  <button id="startBtn" class="start">Teste Başla</button>
+  <button id="stopBtn" class="stop">Durdur</button>
+  <label><input type="checkbox" id="usePointerLock" checked> Pointer Lock (varsa)</label>
+</div>
+<div class="arena" id="arena"></div>
+<div id="warning" class="warning" style="display:none;"></div>
 
 <script>
-const arena = document.getElementById("arena");
-const resultsDiv = document.getElementById("results");
-let sensList = [];
-let dpi = 800;
-let currentSensIndex = 0;
-let scoreData = [];
-let targetCount = 10;
-let hits = 0;
-let startTime = 0;
+const arena = document.getElementById('arena');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const usePointerLockCheckbox = document.getElementById('usePointerLock');
+const warningEl = document.getElementById('warning');
 
-// Pointer lock için
-let usingPointerLock = false;
-let crosshair = {x:400, y:300}; // ortadan başlar
-let crosshairEl = null;
+let cursor = {x:400,y:260};
+let spawn = null;
+let running = false;
+let pointerLockActive = false;
+let shots = [];
+let targetsLeft = 0;
+let currentSens = 0.4;
+const roundTargets = 12;
+const targetR = 18;
+const arenaPadding = 24;
 
-function startTest(){
-  sensList = document.getElementById("sensitivities").value.split(",").map(s=>parseFloat(s.trim())).filter(x=>!isNaN(x));
-  dpi = parseInt(document.getElementById("dpi").value)||800;
-  currentSensIndex = 0;
-  scoreData = [];
-  resultsDiv.innerHTML = "";
-  nextSens();
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+function distance(x1,y1,x2,y2){return Math.hypot(x1-x2,y1-y2);}
+
+function createCrosshair(){ 
+  const div = document.createElement('div'); 
+  div.className='crosshair'; 
+  div.innerHTML='<div class="h"></div><div class="v"></div><div class="center"></div>';
+  arena.appendChild(div); 
+  return div;
 }
 
-function nextSens(){
-  if(currentSensIndex >= sensList.length){
-    showResults();
-    return;
-  }
-  hits = 0;
-  arena.innerHTML = "";
-  resultsDiv.innerHTML = `<p><b>Sensitivity:</b> ${sensList[currentSensIndex]} (eDPI: ${(sensList[currentSensIndex]*dpi).toFixed(0)})</p>`;
-  startTime = Date.now();
-
-  // Crosshair ekle
-  crosshair = {x:arena.clientWidth/2, y:arena.clientHeight/2};
-  crosshairEl = document.createElement("div");
-  crosshairEl.style.width="12px";
-  crosshairEl.style.height="12px";
-  crosshairEl.style.background="lime";
-  crosshairEl.style.position="absolute";
-  crosshairEl.style.left=crosshair.x+"px";
-  crosshairEl.style.top=crosshair.y+"px";
-  crosshairEl.style.transform="translate(-50%,-50%)";
-  crosshairEl.style.borderRadius="50%";
-  arena.appendChild(crosshairEl);
-
-  spawnTarget();
-
-  // Pointer lock dene
-  arena.requestPointerLock = arena.requestPointerLock || arena.mozRequestPointerLock;
-  if(arena.requestPointerLock){
-    arena.requestPointerLock();
-  }
+function createTarget(x,y,r){
+  const t = document.createElement('div');
+  t.className='target';
+  t.style.width=t.style.height=(r*2)+'px';
+  t.style.left=(x-r)+'px';
+  t.style.top=(y-r)+'px';
+  arena.appendChild(t);
+  return t;
 }
 
-// Pointer lock hareketlerini dinle
-document.addEventListener("pointerlockchange", ()=> {
-  usingPointerLock = (document.pointerLockElement === arena);
-});
+const crosshairEl = createCrosshair();
+let targetEl = null;
 
-// Mouse hareketi
-document.addEventListener("mousemove", (e)=>{
-  if(!crosshairEl) return;
-  let sens = sensList[currentSensIndex]||0.3;
-  if(usingPointerLock){
-    crosshair.x += e.movementX * sens * 2; 
-    crosshair.y += e.movementY * sens * 2;
-  } else {
-    // Fallback: serbest imleçte crosshair takip etmiyor, tıklama ile hedef vurulacak
-    return;
-  }
-  crosshair.x = Math.max(0, Math.min(arena.clientWidth, crosshair.x));
-  crosshair.y = Math.max(0, Math.min(arena.clientHeight, crosshair.y));
-  crosshairEl.style.left = crosshair.x+"px";
-  crosshairEl.style.top = crosshair.y+"px";
-});
-
-// Ateş (sol tık)
-document.addEventListener("mousedown", ()=>{
-  if(!crosshairEl) return;
-  let target = document.elementFromPoint(
-    arena.getBoundingClientRect().left+crosshair.x,
-    arena.getBoundingClientRect().top+crosshair.y
-  );
-  if(target && target.classList.contains("target")){
-    hits++;
-    target.remove();
-    spawnTarget();
-  }
-});
+function updateCrosshair(){ crosshairEl.style.left=cursor.x+'px'; crosshairEl.style.top=cursor.y+'px'; }
 
 function spawnTarget(){
-  if(hits >= targetCount){
-    let timeTaken = (Date.now()-startTime)/1000;
-    scoreData.push({sens:sensList[currentSensIndex], edpi:(sensList[currentSensIndex]*dpi), time:timeTaken});
-    currentSensIndex++;
-    nextSens();
+  const x = Math.random()*(arena.clientWidth-2*(arenaPadding+targetR)) + arenaPadding + targetR;
+  const y = Math.random()*(arena.clientHeight-2*(arenaPadding+targetR)) + arenaPadding + targetR;
+  spawn={x,y,r:targetR,ts:performance.now()};
+  if(targetEl){arena.removeChild(targetEl);}
+  targetEl=createTarget(x,y,targetR);
+}
+
+function removeTarget(){ if(targetEl){arena.removeChild(targetEl); targetEl=null;} spawn=null; }
+
+function startTest(){
+  shots=[];
+  targetsLeft=roundTargets;
+  running=true;
+  cursor={x:arena.clientWidth/2,y:arena.clientHeight/2};
+  updateCrosshair();
+  warningEl.style.display='none';
+}
+
+function stopTest(){
+  running=false;
+  targetsLeft=0;
+  removeTarget();
+  try{document.exitPointerLock();}catch(e){}
+}
+
+function recordShot(hit,timeMs,missDist){ 
+  shots.push({hit,timeMs,dist:missDist}); 
+  targetsLeft--; 
+  removeTarget(); 
+  if(targetsLeft>0){setTimeout(spawnTarget,300);} 
+}
+
+function arenaClick(e){
+  if(usePointerLockCheckbox.checked && 'requestPointerLock' in arena && !pointerLockActive){
+    try{arena.requestPointerLock(); warningEl.style.display='none';} 
+    catch(err){ warningEl.style.display='block'; warningEl.innerText='Pointer Lock engellendi, fallback mod aktif.'; }
     return;
   }
-  let target = document.createElement("div");
-  target.className = "target";
-  target.style.left = Math.random()*(arena.clientWidth-30)+"px";
-  target.style.top = Math.random()*(arena.clientHeight-30)+"px";
-  arena.appendChild(target);
-
-  // Fallback modunda direkt target'a tıklanır
-  if(!usingPointerLock){
-    target.onclick = ()=>{ hits++; target.remove(); spawnTarget(); };
-  }
+  if(!running||!spawn) return;
+  const d=distance(cursor.x,cursor.y,spawn.x,spawn.y);
+  recordShot(d<=spawn.r, performance.now()-spawn.ts, d<=spawn.r?0:d-spawn.r);
 }
 
-function showResults(){
-  arena.innerHTML = "";
-  let best = scoreData.reduce((a,b)=> a.time < b.time ? a : b);
-  let html = "<h2>Sonuçlar</h2><table border='1' style='margin:auto;border-collapse:collapse;'><tr><th>Sens</th><th>eDPI</th><th>Süre (sn)</th></tr>";
-  scoreData.forEach(d=>{
-    html+=`<tr><td>${d.sens}</td><td>${d.edpi}</td><td>${d.time.toFixed(2)}</td></tr>`;
-  });
-  html+="</table>";
-  html+=`<p><b>Önerilen Sens:</b> ${best.sens} (eDPI: ${best.edpi.toFixed(0)})</p>`;
-  resultsDiv.innerHTML = html;
-
-  document.exitPointerLock();
+function arenaMouseMove(e){
+  if(pointerLockActive) return;
+  const rect=arena.getBoundingClientRect();
+  cursor.x=clamp(e.clientX-rect.left,arenaPadding,arena.clientWidth-arenaPadding);
+  cursor.y=clamp(e.clientY-rect.top,arenaPadding,arena.clientHeight-arenaPadding);
+  updateCrosshair();
 }
+
+arena.addEventListener('click',arenaClick);
+arena.addEventListener('mousemove',arenaMouseMove);
+
+startBtn.addEventListener('click',()=>{startTest();spawnTarget();});
+stopBtn.addEventListener('click',stopTest);
+
+document.addEventListener('pointerlockchange',()=>{pointerLockActive=document.pointerLockElement===arena;});
+
+document.addEventListener('mousemove',e=>{
+  if(!pointerLockActive||!running) return;
+  const scale=0.075+currentSens*0.925;
+  cursor.x=clamp(cursor.x+e.movementX*scale,arenaPadding,arena.clientWidth-arenaPadding);
+  cursor.y=clamp(cursor.y+e.movementY*scale,arenaPadding,arena.clientHeight-arenaPadding);
+  updateCrosshair();
+});
 </script>
 </body>
 </html>
