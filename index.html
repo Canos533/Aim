@@ -14,7 +14,7 @@
 </head>
 <body>
   <h1>Valorant Sensitivity Finder 🎯</h1>
-  <p>Valorant hassasiyetlerini virgülle gir (örn: 0.32,0.36,0.40)</p>
+  <p>Valorant sens değerlerini virgülle gir (örn: 0.32,0.36,0.40)</p>
   <input type="text" id="sensitivities" value="0.32,0.36,0.40,0.44,0.48" size="40"/>
   <br/>
   <label>DPI: <input type="number" id="dpi" value="800"/></label>
@@ -35,6 +35,11 @@ let targetCount = 10;
 let hits = 0;
 let startTime = 0;
 
+// Pointer lock için
+let usingPointerLock = false;
+let crosshair = {x:400, y:300}; // ortadan başlar
+let crosshairEl = null;
+
 function startTest(){
   sensList = document.getElementById("sensitivities").value.split(",").map(s=>parseFloat(s.trim())).filter(x=>!isNaN(x));
   dpi = parseInt(document.getElementById("dpi").value)||800;
@@ -52,9 +57,65 @@ function nextSens(){
   hits = 0;
   arena.innerHTML = "";
   resultsDiv.innerHTML = `<p><b>Sensitivity:</b> ${sensList[currentSensIndex]} (eDPI: ${(sensList[currentSensIndex]*dpi).toFixed(0)})</p>`;
-  spawnTarget();
   startTime = Date.now();
+
+  // Crosshair ekle
+  crosshair = {x:arena.clientWidth/2, y:arena.clientHeight/2};
+  crosshairEl = document.createElement("div");
+  crosshairEl.style.width="12px";
+  crosshairEl.style.height="12px";
+  crosshairEl.style.background="lime";
+  crosshairEl.style.position="absolute";
+  crosshairEl.style.left=crosshair.x+"px";
+  crosshairEl.style.top=crosshair.y+"px";
+  crosshairEl.style.transform="translate(-50%,-50%)";
+  crosshairEl.style.borderRadius="50%";
+  arena.appendChild(crosshairEl);
+
+  spawnTarget();
+
+  // Pointer lock dene
+  arena.requestPointerLock = arena.requestPointerLock || arena.mozRequestPointerLock;
+  if(arena.requestPointerLock){
+    arena.requestPointerLock();
+  }
 }
+
+// Pointer lock hareketlerini dinle
+document.addEventListener("pointerlockchange", ()=> {
+  usingPointerLock = (document.pointerLockElement === arena);
+});
+
+// Mouse hareketi
+document.addEventListener("mousemove", (e)=>{
+  if(!crosshairEl) return;
+  let sens = sensList[currentSensIndex]||0.3;
+  if(usingPointerLock){
+    crosshair.x += e.movementX * sens * 2; 
+    crosshair.y += e.movementY * sens * 2;
+  } else {
+    // Fallback: serbest imleçte crosshair takip etmiyor, tıklama ile hedef vurulacak
+    return;
+  }
+  crosshair.x = Math.max(0, Math.min(arena.clientWidth, crosshair.x));
+  crosshair.y = Math.max(0, Math.min(arena.clientHeight, crosshair.y));
+  crosshairEl.style.left = crosshair.x+"px";
+  crosshairEl.style.top = crosshair.y+"px";
+});
+
+// Ateş (sol tık)
+document.addEventListener("mousedown", ()=>{
+  if(!crosshairEl) return;
+  let target = document.elementFromPoint(
+    arena.getBoundingClientRect().left+crosshair.x,
+    arena.getBoundingClientRect().top+crosshair.y
+  );
+  if(target && target.classList.contains("target")){
+    hits++;
+    target.remove();
+    spawnTarget();
+  }
+});
 
 function spawnTarget(){
   if(hits >= targetCount){
@@ -68,8 +129,12 @@ function spawnTarget(){
   target.className = "target";
   target.style.left = Math.random()*(arena.clientWidth-30)+"px";
   target.style.top = Math.random()*(arena.clientHeight-30)+"px";
-  target.onclick = ()=>{ hits++; target.remove(); spawnTarget(); };
   arena.appendChild(target);
+
+  // Fallback modunda direkt target'a tıklanır
+  if(!usingPointerLock){
+    target.onclick = ()=>{ hits++; target.remove(); spawnTarget(); };
+  }
 }
 
 function showResults(){
@@ -82,6 +147,8 @@ function showResults(){
   html+="</table>";
   html+=`<p><b>Önerilen Sens:</b> ${best.sens} (eDPI: ${best.edpi.toFixed(0)})</p>`;
   resultsDiv.innerHTML = html;
+
+  document.exitPointerLock();
 }
 </script>
 </body>
